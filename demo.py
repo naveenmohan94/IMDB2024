@@ -1,231 +1,13 @@
-# step_1 pip installl selenium in command prompot
-# step_2 import webdriver and keys from selenium
+
 import streamlit as st
 import mysql.connector
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
-from selenium import webdriver
-from selenium.webdriver.common.by import By
-from selenium.webdriver.common.action_chains import ActionChains
-import time
-import pandas as pd
-import re 
-import mysql.connector
-
-#data scrapping part
-
-# Initialize WebDriver(based on my use  i am use chrome , based user firefox anything)
-driver = webdriver.Chrome()
-
-# IMDb URL for 2024 movies
-genres = {"Action":'https://www.imdb.com/search/title/?title_type=feature&release_date=2024-01-01,2024-12-31&genres=action',
-          "Adventure" :'https://www.imdb.com/search/title/?title_type=feature&genres=adventure&release_date=2024-01-01,2024-12-31',
-          "Comedy" : 'https://www.imdb.com/search/title/?title_type=feature&genres=comedy&release_date=2024-01-01,2024-12-31',
-          "Animation":'https://www.imdb.com/search/title/?title_type=feature&genres=animation&release_date=2024-01-01,2024-12-31',
-          "Family"   :'https://www.imdb.com/search/title/?title_type=feature&genres=family&release_date=2024-01-01,2024-12-31'
-          }
-  # Allow page to load
-
-# Function to click "See More" button until all movies are loaded(so i can write the function without arugument )
-def load_all_movies():
-    while True:# (in this line i am using while loop bcz i dont now range of the page )
-        try:
-            # Locate the "See More" button
-            button = driver.find_element(By.XPATH, '//*[@id="__next"]/main/div[2]/div[3]/section/section/div/section/section/div[2]/div/section/div[2]/div[2]/div[2]/div/span')
-            ActionChains(driver).move_to_element(button).perform()
-            button.click()
-            time.sleep(5)  # Wait for content to load
-            print("Loading more movies...")
-        except:
-            print("No more pages to load.")
-            break  # Exit loop when button is not found(i.e page finish)
-
-def movie_data(genre):
-    driver.get(genres[genre])  # Open the respective genre page
-    time.sleep(5)
-
-    # call the function to Load all movies
-    load_all_movies()
-
-
-    # Extract all movie details
-    movies = driver.find_elements(By.XPATH, '//*[@id="__next"]/main/div[2]/div[3]/section/section/div/section/section/div[2]/div/section/div[2]/div[2]/ul/li')
-
-
-#creating the list for each category
-    titles = []
-    ratings = []
-    votings = []
-    durations = []
-    for i in movies :#using for loop to iterate the data from movies(variable)
-        try:
-            title_data = i.find_element(By.XPATH, './div/div/div/div[1]/div[2]/div[1]/a/h3').text
-            rating_data = i.find_element(By.XPATH, './div/div/div/div[1]/div[2]/span/div/span/span[1]').text
-            voting_data = i.find_element(By.XPATH, './div/div/div/div[1]/div[2]/span/div/span/span[2]').text
-            duration_data = i.find_element(By.XPATH, './div/div/div/div[1]/div[2]/div[2]/span[2]').text
-        # to add(append) the text data for each list 
-            titles.append(title_data)
-            ratings.append(rating_data)
-            votings.append(voting_data)
-            durations.append(duration_data)
-
-        except Exception as M :
-            print(f"some of movies data is :{M}")
-            continue
-    # in this line return function and extract the data categeroy wise with dataframe
-    return pd.DataFrame({
-        "Genre": genre,
-        "Titles": titles,
-        "Ratings": ratings,
-        "Votings": votings,
-        "Duration": durations
-    })
-# in this line i will store the data for each genre wise 
-action = movie_data("Action")
-adventure = movie_data("Adventure")
-comedy = movie_data("Comedy")
-animation = movie_data("Animation")
-family = movie_data('Family')
-
-
-# Combine all genre DataFrames into one
-final_df = pd.concat([action, adventure, comedy,animation,family], ignore_index=True)
-
-#  Save DataFrame to CSV
-final_df.to_csv("IMDb_2024_Movies.csv", index=False)
-
-# Close WebDriver
-driver.quit()
-
-# get the csv files
-
-d = pd.read_csv("\\Users\\NAVEEN\\OneDrive\\Desktop\\project\\IMDb_2024_Movies.csv")
-
-# write the function to remove(int,.) in Title cloumn(using text_regression method )
-
-def tiles_integer_remove(x):
-    return re.sub(r"[\d{3}+.]","",x).strip()
-
-#Apply the funtion in Titles cloumn
-d['Titles'] = d['Titles'].apply(tiles_integer_remove)
-
-#A Write the function for removing the "()" in Votings column(using text_regression method )
-def votings_K_remove(x):
-    return re.sub(r"[()]","",x)
-
-#Apply the funtion in Titles cloumn
-d["Votings"]= d["Votings"].apply(votings_K_remove)
-
-#converting the object(string)values to float 
-d["Votings"]= d["Votings"].str.replace("K","1000").astype(float)
-
-# write the function to remove h and m in duration cloumn(using text_regression method)
-def remove_h_m_duration(x): 
-    return re.sub(r"[a-zA-z]","",x)
-#Apply the function in Duration cloumn
-d["Duration"] = d["Duration"].apply(remove_h_m_duration)
-
-#After removing the h and m in duration cloumn we have some values
-
-# In duration cloumn we have value 16+ , so we replace with 16
-d["Duration"] = d["Duration"].str.replace("16+","16")
-
-# In duration cloumn we have value - , so we replace with 0
-d["Duration"] = d["Duration"].str.replace("-","0")
-
-
-
-# Function to Convert to Seconds
-def convert_to_seconds(duration):
-    parts = duration.split()  # Split by space
-    
-    # Set default values for hours and minutes
-    hours = 0
-    minutes = 0
-
-    if len(parts) == 2:  # Case: "2 28" (Both Hours and Minutes)
-        hours, minutes = int(parts[0]), int(parts[1])
-    elif len(parts) == 1:  # Case: "50" or "1" (Only Minutes)
-        minutes = int(parts[0])
-    
-    return (hours * 3600) + (minutes * 60)  # Convert to total seconds
-
-# Apply Function
-d['DUR_in_seconds'] = d['Duration'].apply(convert_to_seconds)
-
-#to drop the duration cloumn
-d.drop(columns="Duration",axis=1,inplace=True)
-
-# collect the values of dataframe and to list to store value in database(mysql)
-insert_values = d.values.tolist()
-
-# datawarehousing part
-
-# connection vscode to mysql(database)
-try:
-
-    mydb = mysql.connector.connect(
-    host="localhost",
-    user="root",
-    password="Naveen@090194"
-    )
-
-    mycursor = mydb.cursor()
-    # creating the database in mysql
-    mycursor.execute("CREATE DATABASE IMDB2024")
-    print("databse succesfully created in mysql")
-except :
-    print("print the database already created")
-
-
-#create the table for in database(IMDB2024)
-
-mydb = mysql.connector.connect(
-  host="localhost",
-  user="root",
-  password="Naveen@090194",
-  database="IMDB2024"
-)
-
-mycursor = mydb.cursor()
-
-try :
-      
-    create_query = ('''CREATE TABLE movies (        Genre VARCHAR(255), 
-                                                        Titles VARCHAR(255),
-                                                        Ratings float,
-                                                        Votings float,
-                                                        DUR_in_seconds float 
-                                                        )''')
-    mycursor.execute(create_query)
-
-    print("TABLES ARE SUCCESFUULY CREATED IN MYSQL")
-except :
-  print("TABLES ALREADY  IN MYSQL")
-
-#INSERT THE VALUE IN TABLE ON (IMDB20240)DATABASE
-
-try:
-
-    insert_query = ''' insert into movies
-                     values
-                     (%s,%s,%s,%s,%s)'''
-    mycursor.executemany(insert_query,insert_values)   
-    mydb.commit()
-    print("values are successfully inserted in the table")
-except :
-    print("values are already exist")
-
-
-
-
-
 # Streamlit UI
 st.title("🎬 IMDB 2024 PROJECT")
-st.image("C:/Users/NAVEEN/OneDrive/Desktop/image/imdb2024.webp", width=800)
 st.sidebar.header("Choose the Page")
-page = st.sidebar.radio("Select Page", ["VISUALIZATION", "MYSQL","FILTER OPTIONS"]) 
+page = st.sidebar.radio("Select Page", ["HOME","VISUALIZATION", "MYSQL","FILTER OPTIONS"]) 
 
 # MySQL Connection
 conn = mysql.connector.connect(
@@ -290,6 +72,11 @@ FROM Movies
 WHERE Ratings IS NOT NULL AND Votings IS NOT NULL
 ;"""
 }
+
+#Home page
+if page == "HOME" :
+     
+     st.image("C:/Users/NAVEEN/Downloads/imdb2024.webp", width=800)
 
 # MYSQL Page Logic
 if page == "MYSQL":
@@ -422,18 +209,13 @@ if page == "VISUALIZATION":
                 st.markdown("<h1 style='color: blue;'>MOVIES FOR HIGH RATING AND VOTINGS</h1>", unsafe_allow_html=True)
                 df_1 = pd.DataFrame(result, columns=["Title", "Genre", "Ratings", "Votings"])
 
-            # Plotting
-                #plt.figure(figsize=(10, 6))
-                #sns.scatterplot(data = df_1,
-                #x = "Votings" ,
-                #y = "Ratings",
-                #size ="Genre",
-                #hue = "Title")
+                # Plotting
+               
                 sns.barplot(data = df_1, x = 'Ratings', y = 'Votings', hue = "Genre", palette= 'viridis')
                 plt.title('BARPLOT OF RATINGS VS. VOTING_COUNTS')
                 plt.xlabel('Ratings')
                 plt.ylabel('Voting Counts')
-                plt.show()
+               
                 # Display plot in Streamlit
                 st.pyplot(plt)
 
@@ -447,7 +229,7 @@ if page == "VISUALIZATION":
                  plt.title('BARTPLOT of GENRE VS. TOTAL_MOVIES')
                  plt.xlabel('GENRE')
                  plt.ylabel('TOTAL_MOVIES')
-                 plt.show()
+                
                 # Display plot in Streamlit
                  st.pyplot(plt)
             
@@ -485,8 +267,7 @@ if page == "VISUALIZATION":
                     # Adjust layout
                     plt.tight_layout()
 
-                    # Display the plot
-                plt.show()
+                 
                  # Display plot in Streamlit
                 st.pyplot(plt)
             elif query_choice == "AVG_VOTING COUNTS FOR EACH GENRE":
@@ -523,20 +304,18 @@ if page == "VISUALIZATION":
 
                     # Clear previous plots
                     plt.clf()
-                    fig, axes = plt.subplots(1, 2, figsize=(14, 6))  # Two plots side-by-side
 
                     # Histogram
-                    axes[0].hist(df_5['RATINGS'], bins=10, color='skyblue', edgecolor='black')
-                    axes[0].set_title('Histogram of Movie Ratings')
-                    axes[0].set_xlabel('Ratings')
-                    axes[0].set_ylabel('Frequency')
+                    
+                    st.title("IMDB Ratings Distribution")
 
-                    # Boxplot
-                    axes[1].boxplot(df_5['RATINGS'], vert=True, patch_artist=True,
-                                    boxprops=dict(facecolor='lightgreen', color='black'),
-                                    medianprops=dict(color='red', linewidth=2))
-                    axes[1].set_title('Boxplot of Movie Ratings')
-                    axes[1].set_ylabel('Ratings')
+                    # Plot
+                    fig, ax = plt.subplots(figsize=(8, 5))
+                    sns.histplot(df_5['RATINGS'], bins=20, kde=True, ax=ax)  # KDE for smooth curve
+                    ax.set_xlabel("Ratings")
+                    ax.set_ylabel("Count")
+                    ax.set_title("Distribution of IMDb Ratings")
+
 
                     # Adjust layout
                     plt.tight_layout()
@@ -731,6 +510,11 @@ if page == "FILTER OPTIONS":
         filtered_df = DF.copy()
 
         # Duration Filter Logic
+        if duration_filter == "All":
+            filtered_df =   filtered_df
+            st.dataframe( filtered_df)
+            st.markdown(f"**Total Movies Found for ALL:** {len(filtered_df)}")
+
         if duration_filter == "< 2 hrs":
             filtered_df = filtered_df[filtered_df["DUR_IN_SEC"] < 7200]
             st.dataframe( filtered_df)
