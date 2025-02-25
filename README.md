@@ -62,16 +62,4 @@ matplotlib / seaborn (for visualizations)
 
 numpy
 
-How to Run the Project:
 
-Clone the repository from GitHub.
-
-Install the required libraries using pip install -r requirements.txt.
-
-Run the Streamlit app with the command:
-
-streamlit run app.py
-
-Access the dashboard via localhost:8501 in your web browser.
-
-Contributors:
